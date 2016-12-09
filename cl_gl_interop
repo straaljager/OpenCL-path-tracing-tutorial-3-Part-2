@@ -7,8 +7,8 @@
 
 //#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"   // OpenCL-OpenGL interoperability extension
 
-const int window_width = 800;// 1280;
-const int window_height = 600; // 720;
+const int window_width = 1280;
+const int window_height = 720;
 
 // OpenGL vertex buffer object
 GLuint vbo;
