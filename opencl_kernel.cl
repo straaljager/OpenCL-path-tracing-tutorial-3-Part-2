@@ -50,19 +50,6 @@ static float get_random(unsigned int *seed0, unsigned int *seed1) {
 
 Ray createCamRay(const int x_coord, const int y_coord, const int width, const int height, __constant Camera* cam, const int* seed0, const int* seed1){
 
-	float fx = (float)x_coord / (float)width;  /* convert int in range [0 - width] to float in range [0-1] */
-	float fy = (float)y_coord / (float)height; /* convert int in range [0 - height] to float in range [0-1] */
-
-	/* calculate aspect ratio */
-	float aspect_ratio = (float)(width) / (float)(height);
-	float fx2 = (fx - 0.5f) * aspect_ratio;
-	float fy2 = fy - 0.5f;
-
-	/* determine position of pixel on screen */
-	float3 pixel_pos = (float3)(fx2, fy2, 0.0f); 
-
-	/********************************************/
-
 	float3 rendercamview = cam->view; rendercamview = normalize(rendercamview);
 	float3 rendercamup = cam->up; rendercamup = normalize(rendercamup);
 	float3 horizontalAxis = cross(rendercamview, rendercamup); horizontalAxis = normalize(horizontalAxis);
@@ -98,16 +85,13 @@ Ray createCamRay(const int x_coord, const int y_coord, const int width, const in
 
 		aperturePoint = cam->position + (horizontalAxis * apertureX) + (verticalAxis * apertureY);
 	}
-	else { 
-		aperturePoint = cam->position;
-	}
+	else aperturePoint = cam->position;
 
 	float3 apertureToImagePlane = pointOnImagePlane - aperturePoint; apertureToImagePlane = normalize(apertureToImagePlane); 
 
 	/* create camera ray*/
 	Ray ray;
 	ray.origin = aperturePoint;
-	ray.dir = normalize(pixel_pos - ray.origin);  /* vector from camera to pixel on screen */
 	ray.dir = apertureToImagePlane; 
 
 	return ray;
@@ -188,7 +172,7 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		float3 normal_facing = dot(normal, ray.dir) < 0.0f ? normal : normal * (-1.0f);
 
 		/* compute two random numbers to pick a random point on the hemisphere above the hitpoint*/
-		float rand1 = 2.0f * PI * get_random(seed0, seed1);
+		float rand1 = get_random(seed0, seed1) * 2.0f * PI;
 		float rand2 = get_random(seed0, seed1);
 		float rand2s = sqrt(rand2);
 
