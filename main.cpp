@@ -212,6 +212,8 @@ void initCLKernel(){
 	kernel.setArg(4, cl_vbo);
 	kernel.setArg(5, framenumber);
 	kernel.setArg(6, cl_camera);
+	kernel.setArg(7, rand());
+	kernel.setArg(8, rand());
 }
 
 void runKernel(){
@@ -260,7 +262,10 @@ void render(){
 
 	framenumber++;
 	// kernel.setArg(0, cl_spheres);    WORKS even when commented out
-	kernel.setArg(5, WangHash(framenumber));
+	//kernel.setArg(5, WangHash(framenumber));
+	kernel.setArg(5, framenumber);
+	kernel.setArg(7, rand());
+	kernel.setArg(8, rand());
 
 	// build a new camera for each frame on the CPU
 	interactiveCamera->buildRenderCamera(hostRendercam);
