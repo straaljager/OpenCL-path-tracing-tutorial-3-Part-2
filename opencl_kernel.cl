@@ -76,7 +76,7 @@ Ray createCamRay(const int x_coord, const int y_coord, const int width, const in
 	if (cam->apertureRadius > 0.00001f) { 
 
 		float random1 = get_random(seed0, seed1);
-		float random2 = get_random(seed0, seed1);
+		float random2 = get_random(seed1, seed0);
 
 		float angle = 2 * PI * random1;
 		float distance = cam->apertureRadius * sqrt(random2);
@@ -152,10 +152,16 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 	float3 accum_color = (float3)(0.0f, 0.0f, 0.0f);
 	float3 mask = (float3)(1.0f, 1.0f, 1.0f);
 
+	int randSeed0 = seed0;
+	int randSeed1 = seed1;
+
 	for (int bounces = 0; bounces < 8; bounces++){
 
 		float t;   /* distance to intersection */
 		int hitsphere_id = 0; /* index of intersected sphere */
+
+		randSeed0 += floor(sin(randSeed1) * 1758.5453123);
+		randSeed1 += floor(sin(randSeed0) * 1758.5453123);
 
 		/* if ray misses scene, return background colour */
 		if (!intersect_scene(spheres, &ray, &t, &hitsphere_id, sphere_count))
@@ -172,8 +178,8 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		float3 normal_facing = dot(normal, ray.dir) < 0.0f ? normal : normal * (-1.0f);
 
 		/* compute two random numbers to pick a random point on the hemisphere above the hitpoint*/
-		float rand1 = get_random(seed0, seed1) * 2.0f * PI;
-		float rand2 = get_random(seed0, seed1);
+		float rand1 = get_random(randSeed0, randSeed1) * 2.0f * PI;
+		float rand2 = get_random(randSeed1, randSeed0);
 		float rand2s = sqrt(rand2);
 
 		/* create a local orthogonal coordinate frame centered at the hitpoint */
@@ -205,15 +211,15 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
-	const int sphere_count, __global float3* output, const int hashedframenumber, __constant const Camera* cam)
+	const int sphere_count, __global float3* output, const int framenumber, __constant const Camera* cam, float random0, float random1)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
 	unsigned int y_coord = work_item_id / width;			/* y-coordinate of the pixel */
 
 	/* seeds for random number generator */
-	unsigned int seed0 = x_coord + hashedframenumber;
-	unsigned int seed1 = y_coord + hashedframenumber * 23456;
+	unsigned int seed0 = x_coord * y_coord * framenumber%1000 + (random0*100);
+	unsigned int seed1 = x_coord * y_coord * framenumber%1000 + (random1*100);
 
 	Ray camray = createCamRay(x_coord, y_coord, width, height, cam, &seed0, &seed1);
 
