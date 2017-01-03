@@ -221,14 +221,14 @@ __kernel void render_kernel(__constant Sphere* spheres, const int width, const i
 	unsigned int seed0 = x_coord * y_coord * framenumber%1000 + (random0*100);
 	unsigned int seed1 = x_coord * y_coord * framenumber%1000 + (random1*100);
 
-	Ray camray = createCamRay(x_coord, y_coord, width, height, cam, &seed0, &seed1);
-
 	/* add the light contribution of each sample and average over all samples*/
 	float3 finalcolor = (float3)(0.0f, 0.0f, 0.0f);
 	float invSamples = 1.0f / SAMPLES;
 
-	for (int i = 0; i < SAMPLES; i++)
+	for (int i = 0; i < SAMPLES; i++){
+		Ray camray = createCamRay(x_coord, y_coord, width, height, cam, &seed0, &seed1);
 		finalcolor += trace(spheres, &camray, sphere_count, &seed0, &seed1) * invSamples;
+	}
 
 	finalcolor = (float3)(clamp(finalcolor.x, 0.0f, 1.0f),
 		clamp(finalcolor.y, 0.0f, 1.0f), clamp(finalcolor.z, 0.0f, 1.0f));
