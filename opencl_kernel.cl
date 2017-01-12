@@ -1,12 +1,11 @@
 /* OpenCL based simple sphere path tracer by Sam Lapere, 2016*/
 /* based on smallpt by Kevin Beason */
 /* http://raytracey.blogspot.com */
-/* camera depth of field code based on GPU path tracer by Peter Kutz and Karl Li */
-/* WIP: needs a better random number generator to make depth-of-field work */
+/* interactive camera and depth-of-field code based on GPU path tracer by Karl Li and Peter Kutz */
 
 __constant float EPSILON = 0.00003f; /* req2uired to compensate for limited float precision */
 __constant float PI = 3.14159265359f;
-__constant int SAMPLES = 16;
+__constant int SAMPLES = 4;
 
 typedef struct Ray{
 	float3 origin;
@@ -50,6 +49,7 @@ static float get_random(unsigned int *seed0, unsigned int *seed1) {
 
 Ray createCamRay(const int x_coord, const int y_coord, const int width, const int height, __constant Camera* cam, const int* seed0, const int* seed1){
 
+	/* create a local coordinate frame for the camera */
 	float3 rendercamview = cam->view; rendercamview = normalize(rendercamview);
 	float3 rendercamup = cam->up; rendercamup = normalize(rendercamup);
 	float3 horizontalAxis = cross(rendercamview, rendercamup); horizontalAxis = normalize(horizontalAxis);
@@ -73,6 +73,7 @@ Ray createCamRay(const int x_coord, const int y_coord, const int width, const in
 
 	float3 aperturePoint;
 
+	/* if aperture is non-zero (aperture is zero for pinhole camera), pick a random point on the aperture/lens */
 	if (cam->apertureRadius > 0.00001f) { 
 
 		float random1 = get_random(seed0, seed1);
@@ -151,7 +152,6 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 
 	float3 accum_color = (float3)(0.0f, 0.0f, 0.0f);
 	float3 mask = (float3)(1.0f, 1.0f, 1.0f);
-
 	int randSeed0 = seed0;
 	int randSeed1 = seed1;
 
@@ -159,6 +159,11 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 
 		float t;   /* distance to intersection */
 		int hitsphere_id = 0; /* index of intersected sphere */
+
+		/* update random number seeds for each bounce */ 
+		/*randSeed0 += 1; */ 
+		/*randSeed1 += 345;*/ 
+		
 
 		/* if ray misses scene, return background colour */
 		if (!intersect_scene(spheres, &ray, &t, &hitsphere_id, sphere_count))
@@ -208,35 +213,45 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 union Colour{ float c; uchar4 components; };
 
 __kernel void render_kernel(__constant Sphere* spheres, const int width, const int height, 
-	const int sphere_count, __global float3* output, const int framenumber, __constant const Camera* cam, float random0, float random1)
+	const int sphere_count, __global float3* output, const int framenumber, __constant const Camera* cam, 
+	float random0, float random1, __global float3* accumbuffer, const int hashedframenumber)
 {
 	unsigned int work_item_id = get_global_id(0);	/* the unique global id of the work item for the current pixel */
 	unsigned int x_coord = work_item_id % width;			/* x-coordinate of the pixel */
 	unsigned int y_coord = work_item_id / width;			/* y-coordinate of the pixel */
 
 	/* seeds for random number generator */
+	
 	unsigned int seed0 = x_coord * framenumber % 1000 + (random0 * 100);
 	unsigned int seed1 = y_coord * framenumber % 1000 + (random1 * 100);
+	
 
 	/* add the light contribution of each sample and average over all samples*/
 	float3 finalcolor = (float3)(0.0f, 0.0f, 0.0f);
 	float invSamples = 1.0f / SAMPLES;
 
-	for (int i = 0; i < SAMPLES; i++){
+	for (unsigned int i = 0; i < SAMPLES; i++){
 		Ray camray = createCamRay(x_coord, y_coord, width, height, cam, &seed0, &seed1);
 		finalcolor += trace(spheres, &camray, sphere_count, &seed0, &seed1) * invSamples;
 	}
 
-	finalcolor = (float3)(clamp(finalcolor.x, 0.0f, 1.0f),
-		clamp(finalcolor.y, 0.0f, 1.0f), clamp(finalcolor.z, 0.0f, 1.0f));
+	/* add pixel colour to accumulation buffer (accumulates all samples) */
+	accumbuffer[work_item_id] += finalcolor;
+	/* averaged colour: divide colour by the number of calculated frames so far */
+	float3 tempcolor = accumbuffer[work_item_id] / framenumber;
 
-	union Colour fcolour;
-	fcolour.components = (uchar4)(
-		(unsigned char)(finalcolor.x * 255),
-		(unsigned char)(finalcolor.y * 255),
-		(unsigned char)(finalcolor.z * 255),
+	tempcolor = (float3)(
+		clamp(tempcolor.x, 0.0f, 1.0f),
+		clamp(tempcolor.y, 0.0f, 1.0f), 
+		clamp(tempcolor.z, 0.0f, 1.0f));
+
+	union Colour fcolor;
+	fcolor.components = (uchar4)(
+		(unsigned char)(tempcolor.x * 255),
+		(unsigned char)(tempcolor.y * 255),
+		(unsigned char)(tempcolor.z * 255),
 		1);
 
 	/* store the pixelcolour in the output buffer */
-	output[work_item_id] = (float3)(x_coord, y_coord, fcolour.c);
+	output[work_item_id] = (float3)(x_coord, y_coord, fcolor.c);
 }
