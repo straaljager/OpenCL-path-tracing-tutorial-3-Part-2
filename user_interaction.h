@@ -47,6 +47,12 @@ int lastX = 0, lastY = 0;
 int theButtonState = 0;
 int theModifierState = 0;
 
+// mouse controls
+int mouse_old_x, mouse_old_y;
+int mouse_buttons = 0;
+float rotate_x = 0.0, rotate_y = 0.0;
+float translate_z = -30.0;
+
 // camera mouse controls in X and Y direction
 void motion(int x, int y)
 {
