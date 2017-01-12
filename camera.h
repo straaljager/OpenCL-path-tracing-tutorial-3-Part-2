@@ -1,7 +1,5 @@
 # pragma once
 
-// camera interaction code based on GPU path tracer by Peter Kutz and Karl Li
-
 #include "linear_algebra.h"
 
 #define M_PI 3.14156265
