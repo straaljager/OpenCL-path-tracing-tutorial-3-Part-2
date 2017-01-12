@@ -1,7 +1,5 @@
 #include "camera.h"
 
-// code based on GPU path tracer by Peter Kutz and Karl Li
-
 // constructor and default values
 InteractiveCamera::InteractiveCamera()
 {
