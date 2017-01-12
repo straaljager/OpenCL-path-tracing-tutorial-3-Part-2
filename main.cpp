@@ -30,6 +30,7 @@ Program program;
 Buffer cl_output;
 Buffer cl_spheres;
 Buffer cl_camera;
+Buffer cl_accumbuffer;
 BufferGL cl_vbo;
 vector<Memory> cl_vbos;
 
@@ -195,6 +196,19 @@ void initScene(Sphere* cpu_spheres){
 	cpu_spheres[3].emission = Vector3Df(9.0f, 8.0f, 6.0f);
 }
 
+// hash function to calculate new seed for each frame
+// see http://www.reedbeta.com/blog/2013/01/12/quick-and-easy-gpu-random-numbers-in-d3d11/
+
+unsigned int WangHash(unsigned int a) {
+	a = (a ^ 61) ^ (a >> 16);
+	a = a + (a << 3);
+	a = a ^ (a >> 4);
+	a = a * 0x27d4eb2d;
+	a = a ^ (a >> 15);
+	return a;
+}
+
+
 void initCLKernel(){
 
 	// pick a rendermode
@@ -214,6 +228,8 @@ void initCLKernel(){
 	kernel.setArg(6, cl_camera);
 	kernel.setArg(7, rand());
 	kernel.setArg(8, rand());
+	kernel.setArg(9, cl_accumbuffer);
+	kernel.setArg(10, WangHash(framenumber));
 }
 
 void runKernel(){
@@ -243,36 +259,31 @@ void runKernel(){
 }
 
 
-// hash function to calculate new seed for each frame
-// see http://www.reedbeta.com/blog/2013/01/12/quick-and-easy-gpu-random-numbers-in-d3d11/
-unsigned int WangHash(unsigned int a) {
-	a = (a ^ 61) ^ (a >> 16);
-	a = a + (a << 3);
-	a = a ^ (a >> 4);
-	a = a * 0x27d4eb2d;
-	a = a ^ (a >> 15);
-	return a;
-}
-
-
 void render(){
 
 	//cpu_spheres[1].position.y += 0.01f;
 	queue.enqueueWriteBuffer(cl_spheres, CL_TRUE, 0, sphere_count * sizeof(Sphere), cpu_spheres);
 
+	if (buffer_reset){
+		float arg = 0;
+		queue.enqueueFillBuffer(cl_accumbuffer, arg, 0, window_width * window_height * sizeof(cl_float3));
+		framenumber = 0;
+	}
+	buffer_reset = false;
 	framenumber++;
-	// kernel.setArg(0, cl_spheres);    WORKS even when commented out
-	//kernel.setArg(5, WangHash(framenumber));
-	kernel.setArg(5, framenumber);
-	kernel.setArg(7, rand());
-	kernel.setArg(8, rand());
 
 	// build a new camera for each frame on the CPU
 	interactiveCamera->buildRenderCamera(hostRendercam);
 	// copy the host camera to a OpenCL camera
 	queue.enqueueWriteBuffer(cl_camera, CL_TRUE, 0, sizeof(Camera), hostRendercam);
 	queue.finish();
+
+	// kernel.setArg(0, cl_spheres);  //  works even when commented out
+	kernel.setArg(5, framenumber);
 	kernel.setArg(6, cl_camera);
+	kernel.setArg(7, rand());
+	kernel.setArg(8, rand());
+	kernel.setArg(10, WangHash(framenumber));
 
 	runKernel();
 
@@ -282,12 +293,6 @@ void render(){
 void cleanUp(){
 	//	delete cpu_output;
 }
-
-// mouse controls
-int mouse_old_x, mouse_old_y;
-int mouse_buttons = 0;
-float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -30.0;
 
 // initialise camera on the CPU
 void initCamera()
@@ -305,6 +310,8 @@ void main(int argc, char** argv){
 	initGL(argc, argv);
 	cout << "OpenGL initialized \n";
 
+	// debug statements
+	/*
 	cout << "size of Vector3Df: " << sizeof(Vector3Df) << "\n";
 	cout << "size of cl_float3: " << sizeof(cl_float3) << "\n";
 	cout << "size of cl_float4: " << sizeof(cl_float4) << "\n";
@@ -314,6 +321,7 @@ void main(int argc, char** argv){
 	cout << "size of cl_int: " << sizeof(cl_int) << "\n";
 	cout << "size of Sphere: " << sizeof(Sphere) << "\n";
 	cout << "size of Camera: " << sizeof(Camera) << "\n";
+	*/
 
 
 	// initialise OpenCL
@@ -346,6 +354,9 @@ void main(int argc, char** argv){
 	// create OpenCL buffer from OpenGL vertex buffer object
 	cl_vbo = BufferGL(context, CL_MEM_WRITE_ONLY, vbo);
 	cl_vbos.push_back(cl_vbo);
+
+	// reserve memory buffer on OpenCL device to hold image buffer for accumulated samples
+	cl_accumbuffer = Buffer(context, CL_MEM_WRITE_ONLY, window_width * window_height * sizeof(cl_float3));
 
 	// intitialise the kernel
 	initCLKernel();
