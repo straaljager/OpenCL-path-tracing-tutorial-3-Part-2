@@ -160,11 +160,10 @@ float3 trace(__constant Sphere* spheres, const Ray* camray, const int sphere_cou
 		float t;   /* distance to intersection */
 		int hitsphere_id = 0; /* index of intersected sphere */
 
-		/* update random number seeds for each bounce */ 
-		/*randSeed0 += 1; */ 
-		/*randSeed1 += 345;*/ 
+		/* update random number seeds for each bounce */
+		randSeed0 += floor(sin(randSeed0));
+		randSeed1 += floor(sin(randSeed1));
 		
-
 		/* if ray misses scene, return background colour */
 		if (!intersect_scene(spheres, &ray, &t, &hitsphere_id, sphere_count))
 			return accum_color += mask * (float3)(0.15f, 0.15f, 0.25f);
